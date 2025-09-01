@@ -2,29 +2,43 @@
 #include <string.h>
 #include <stdlib.h>
 
-// Funkce pro výpočet délky LCS a vyplnění matice
-// Vrací délku LCS, matice je modifikována "side-effectem"
-int lcs_length(const char* s1, const char* s2, int** matrix) {
+/**
+ * @brief Calculates the length of the Longest Common Subsequence (LCS) of two strings.
+ *
+ * This function uses a dynamic programming approach to fill a matrix representing the lengths
+ * of common subsequences. It modifies the provided matrix and returns the total length of the LCS.
+ *
+ * @param s1 The first input string.
+ * @param s2 The second input string.
+ * @param matrix A 2D integer array (matrix) to store the LCS lengths.
+ * @return The length of the LCS. Returns -1 on error.
+ */
+int calculate_lcs_length(const char* s1, const char* s2, int** matrix) {
+    if (!s1 || !s2 || !matrix) {
+        fprintf(stderr, "Error: Invalid input strings or matrix.\n");
+        return -1;
+    }
+
     int m = strlen(s1);
     int n = strlen(s2);
 
-    // Inicializace prvního řádku a sloupce nulami
-    for (int i = 0; i <= m; i++) matrix[i][0] = 0;
-    for (int j = 0; j <= n; j++) matrix[0][j] = 0;
+    // Initialize the first row and column with zeros.
+    for (int i = 0; i <= m; ++i) {
+        matrix[i][0] = 0;
+    }
+    for (int j = 0; j <= n; ++j) {
+        matrix[0][j] = 0;
+    }
 
-    // Plnění matice na základě dynamického programování
-    for (int i = 1; i <= m; i++) {
-        for (int j = 1; j <= n; j++) {
+    // Fill the matrix based on character comparison.
+    for (int i = 1; i <= m; ++i) {
+        for (int j = 1; j <= n; ++j) {
             if (s1[i - 1] == s2[j - 1]) {
-                // Shoda znaku - přičteme 1 k diagonální buňce
+                // If characters match, add 1 to the value from the diagonal cell.
                 matrix[i][j] = 1 + matrix[i - 1][j - 1];
             } else {
-                // Neshoda znaku - bereme maximum z horní nebo levé buňky
-                if (matrix[i - 1][j] > matrix[i][j - 1]) {
-                    matrix[i][j] = matrix[i - 1][j];
-                } else {
-                    matrix[i][j] = matrix[i][j - 1];
-                }
+                // If characters don't match, take the maximum value from the cell above or to the left.
+                matrix[i][j] = (matrix[i - 1][j] > matrix[i][j - 1]) ? matrix[i - 1][j] : matrix[i][j - 1];
             }
         }
     }
@@ -32,44 +46,105 @@ int lcs_length(const char* s1, const char* s2, int** matrix) {
     return matrix[m][n];
 }
 
-// Funkce pro rekonstrukci a tisk LCS
-// Prochází matici od konce a rekonstruuje řetězec
+/**
+ * @brief Reconstructs and prints one of the Longest Common Subsequences.
+ *
+ * This function backtracks through the filled matrix from the bottom-right corner
+ * to reconstruct the LCS string.
+ *
+ * @param s1 The first input string.
+ * @param s2 The second input string.
+ * @param m The length of the first string.
+ * @param n The length of the second string.
+ * @param matrix The 2D integer matrix containing LCS lengths.
+ */
 void print_lcs(const char* s1, const char* s2, int m, int n, int** matrix) {
     int i = m;
     int j = n;
     int length = matrix[m][n];
 
-    // Alokace paměti pro výsledný řetězec LCS
-    char* lcs = (char*)malloc((length + 1) * sizeof(char));
-    if (lcs == NULL) {
-        printf("Chyba alokace pameti pro LCS.\n");
+    if (length == 0) {
+        printf("The longest common subsequence is: (empty)\n");
         return;
     }
-    lcs[length] = '\0'; // Ukončovací znak
+
+    char* lcs = (char*)malloc((length + 1) * sizeof(char));
+    if (!lcs) {
+        perror("Memory allocation error for LCS");
+        return;
+    }
+    lcs[length] = '\0';
 
     int index = length - 1;
 
-    // Procházení matice "pozpátku"
+    // Traverse the matrix from the bottom-right corner.
     while (i > 0 && j > 0) {
         if (s1[i - 1] == s2[j - 1]) {
-            // Znaky se shodují, je to část LCS
+            // If characters match, it's part of the LCS. Add the character and move diagonally.
             lcs[index] = s1[i - 1];
             i--;
             j--;
             index--;
         } else if (matrix[i - 1][j] > matrix[i][j - 1]) {
-            // Jdi nahoru
+            // Move up if the value above is greater.
             i--;
         } else {
-            // Jdi doleva
+            // Otherwise, move left.
             j--;
         }
     }
-    printf("Nejdelsi spolecna podsekvence je: %s\n", lcs);
-    free(lcs); // Uvolnění alokované paměti
+    printf("The longest common subsequence is: %s\n", lcs);
+    free(lcs);
 }
 
-// Hlavní funkce
+/**
+ * @brief Safely allocates a 2D matrix.
+ *
+ * This utility function handles the dynamic allocation of a 2D integer array,
+ * including proper error checking and cleanup.
+ *
+ * @param rows The number of rows to allocate.
+ * @param cols The number of columns to allocate.
+ * @return A pointer to the allocated matrix, or NULL on failure.
+ */
+int** allocate_matrix(int rows, int cols) {
+    int** matrix = (int**)malloc(rows * sizeof(int*));
+    if (!matrix) {
+        perror("Memory allocation error for matrix rows");
+        return NULL;
+    }
+    for (int i = 0; i < rows; ++i) {
+        matrix[i] = (int*)malloc(cols * sizeof(int));
+        if (!matrix[i]) {
+            // Clean up previously allocated rows.
+            for (int j = 0; j < i; ++j) {
+                free(matrix[j]);
+            }
+            free(matrix);
+            perror("Memory allocation error for matrix columns");
+            return NULL;
+        }
+    }
+    return matrix;
+}
+
+/**
+ * @brief Safely frees a 2D matrix.
+ *
+ * This utility function deallocates all memory associated with a 2D integer array.
+ *
+ * @param matrix The matrix to free.
+ * @param rows The number of rows in the matrix.
+ */
+void free_matrix(int** matrix, int rows) {
+    if (matrix) {
+        for (int i = 0; i < rows; ++i) {
+            free(matrix[i]);
+        }
+        free(matrix);
+    }
+}
+
 int main() {
     const char* s1 = "KORAB";
     const char* s2 = "KOLOBEZKA";
@@ -77,42 +152,31 @@ int main() {
     int m = strlen(s1);
     int n = strlen(s2);
     
-    // Dynamická alokace paměti pro matici
-    int** matrix = (int**)malloc((m + 1) * sizeof(int*));
-    if (matrix == NULL) {
-        printf("Chyba alokace pameti pro matici.\n");
+    // Allocate the LCS matrix.
+    int** lcs_matrix = allocate_matrix(m + 1, n + 1);
+    if (!lcs_matrix) {
         return 1;
     }
-    for (int i = 0; i <= m; i++) {
-        matrix[i] = (int*)malloc((n + 1) * sizeof(int));
-        if (matrix[i] == NULL) {
-            // Uvolnění paměti v případě chyby
-            for (int j = 0; j < i; j++) free(matrix[j]);
-            free(matrix);
-            printf("Chyba alokace pameti pro radky matice.\n");
-            return 1;
-        }
+
+    // Calculate the length of the LCS and fill the matrix.
+    int lcs_length_val = calculate_lcs_length(s1, s2, lcs_matrix);
+    if (lcs_length_val < 0) {
+        free_matrix(lcs_matrix, m + 1);
+        return 1;
     }
+    
+    printf("The length of the longest common subsequence is: %d\n", lcs_length_val);
+    print_lcs(s1, s2, m, n, lcs_matrix);
 
-    int length = lcs_length(s1, s2, matrix);
-
-    printf("Delka nejdelssi spolecne podsekvence je: %d\n", length);
-    print_lcs(s1, s2, m, n, matrix);
-
-    // Uvolnění veškeré alokované paměti
-    for (int i = 0; i <= m; i++) {
-        free(matrix[i]);
-    }
-    free(matrix);
+    // Clean up allocated memory.
+    free_matrix(lcs_matrix, m + 1);
 
     // Wait for the user to press Enter before exiting.
     printf("\nPress Enter to exit the program...");
     
-    // Clear the input buffer from the previous `scanf`.
-    // This part can be tricky and platform-dependent.
-    // A safer way is to use a loop to consume characters.
-    while (getchar() != '\n'); 
-    getchar(); // Reads the final newline character.
+    // A robust way to clear the input buffer and wait for Enter.
+    while (getchar() != '\n');
+    getchar();
 
     return 0;
 }

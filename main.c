@@ -2,6 +2,33 @@
 #include <string.h>
 #include <stdlib.h>
 
+// Deklarace konstant pro velikost bufferu
+#define MAX_INPUT_LENGTH 1024
+
+/**
+ * @brief Safely reads a line of text from standard input.
+ * * This function dynamically allocates memory for the input string, 
+ * ensuring it can handle strings of various lengths up to MAX_INPUT_LENGTH.
+ *
+ * @return A dynamically allocated string read from standard input, or NULL on error.
+ */
+char* read_string() {
+    char buffer[MAX_INPUT_LENGTH];
+    if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+        return NULL;
+    }
+    // Remove the newline character if it exists
+    buffer[strcspn(buffer, "\n")] = '\0';
+
+    char* str = (char*)malloc(strlen(buffer) + 1);
+    if (str == NULL) {
+        perror("Memory allocation error for string");
+        return NULL;
+    }
+    strcpy(str, buffer);
+    return str;
+}
+
 /**
  * @brief Calculates the length of the Longest Common Subsequence (LCS) of two strings.
  *
@@ -146,15 +173,27 @@ void free_matrix(int** matrix, int rows) {
 }
 
 int main() {
-    const char* s1 = "KORAB";
-    const char* s2 = "KOLOBEZKA";
-    
+    printf("Enter the first string: ");
+    char* s1 = read_string();
+    if (!s1) {
+        return 1;
+    }
+
+    printf("Enter the second string: ");
+    char* s2 = read_string();
+    if (!s2) {
+        free(s1);
+        return 1;
+    }
+
     int m = strlen(s1);
     int n = strlen(s2);
     
     // Allocate the LCS matrix.
     int** lcs_matrix = allocate_matrix(m + 1, n + 1);
     if (!lcs_matrix) {
+        free(s1);
+        free(s2);
         return 1;
     }
 
@@ -162,20 +201,23 @@ int main() {
     int lcs_length_val = calculate_lcs_length(s1, s2, lcs_matrix);
     if (lcs_length_val < 0) {
         free_matrix(lcs_matrix, m + 1);
+        free(s1);
+        free(s2);
         return 1;
     }
     
-    printf("The length of the longest common subsequence is: %d\n", lcs_length_val);
+    printf("\nThe length of the longest common subsequence is: %d\n", lcs_length_val);
     print_lcs(s1, s2, m, n, lcs_matrix);
 
-    // Clean up allocated memory.
+    // Clean up all allocated memory.
     free_matrix(lcs_matrix, m + 1);
+    free(s1);
+    free(s2);
 
     // Wait for the user to press Enter before exiting.
     printf("\nPress Enter to exit the program...");
     
-    // A robust way to clear the input buffer and wait for Enter.
-    while (getchar() != '\n');
+    // Wait for a single Enter press. The input buffer is already clear from fgets().
     getchar();
 
     return 0;

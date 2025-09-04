@@ -1,14 +1,21 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
-// Deklarace konstant pro velikost bufferu
+// Constant for the buffer size
 #define MAX_INPUT_LENGTH 1024
+
+// Function prototypes for clarity
+int** allocate_matrix_single_block(int rows, int cols);
+void free_matrix_single_block(int** matrix);
 
 /**
  * @brief Safely reads a line of text from standard input.
- * * This function dynamically allocates memory for the input string, 
- * ensuring it can handle strings of various lengths up to MAX_INPUT_LENGTH.
+ *
+ * This function uses a fixed-size buffer to read input and then dynamically
+ * allocates memory to store the string. It ensures proper null termination
+ * and handles potential input errors.
  *
  * @return A dynamically allocated string read from standard input, or NULL on error.
  */
@@ -125,50 +132,52 @@ void print_lcs(const char* s1, const char* s2, int m, int n, int** matrix) {
 }
 
 /**
- * @brief Safely allocates a 2D matrix.
+ * @brief Safely allocates a 2D matrix in a single, contiguous memory block.
  *
- * This utility function handles the dynamic allocation of a 2D integer array,
- * including proper error checking and cleanup.
+ * This utility function allocates a single memory block for all matrix data
+ * and then sets up pointers to point to the start of each row. This is more
+ * efficient than allocating each row separately.
  *
  * @param rows The number of rows to allocate.
  * @param cols The number of columns to allocate.
  * @return A pointer to the allocated matrix, or NULL on failure.
  */
-int** allocate_matrix(int rows, int cols) {
+int** allocate_matrix_single_block(int rows, int cols) {
+    // Allocate memory for the row pointers
     int** matrix = (int**)malloc(rows * sizeof(int*));
     if (!matrix) {
         perror("Memory allocation error for matrix rows");
         return NULL;
     }
-    for (int i = 0; i < rows; ++i) {
-        matrix[i] = (int*)malloc(cols * sizeof(int));
-        if (!matrix[i]) {
-            // Clean up previously allocated rows.
-            for (int j = 0; j < i; ++j) {
-                free(matrix[j]);
-            }
-            free(matrix);
-            perror("Memory allocation error for matrix columns");
-            return NULL;
-        }
+    
+    // Allocate a single block of memory for all the data
+    int* data = (int*)malloc(rows * cols * sizeof(int));
+    if (!data) {
+        perror("Memory allocation error for matrix data");
+        free(matrix); // Cleanup the pointer array if data allocation fails
+        return NULL;
     }
+
+    // Set up the row pointers to point into the data block
+    for (int i = 0; i < rows; i++) {
+        matrix[i] = data + i * cols;
+    }
+
     return matrix;
 }
 
 /**
- * @brief Safely frees a 2D matrix.
+ * @brief Safely frees a 2D matrix allocated as a single contiguous block.
  *
- * This utility function deallocates all memory associated with a 2D integer array.
+ * This utility function deallocates both the data block and the pointer array,
+ * ensuring all memory associated with the matrix is released.
  *
  * @param matrix The matrix to free.
- * @param rows The number of rows in the matrix.
  */
-void free_matrix(int** matrix, int rows) {
+void free_matrix_single_block(int** matrix) {
     if (matrix) {
-        for (int i = 0; i < rows; ++i) {
-            free(matrix[i]);
-        }
-        free(matrix);
+        free(matrix[0]); // Free the single data block
+        free(matrix);    // Free the array of pointers
     }
 }
 
@@ -189,8 +198,8 @@ int main() {
     int m = strlen(s1);
     int n = strlen(s2);
     
-    // Allocate the LCS matrix.
-    int** lcs_matrix = allocate_matrix(m + 1, n + 1);
+    // Allocate the LCS matrix using the more efficient single-block method.
+    int** lcs_matrix = allocate_matrix_single_block(m + 1, n + 1);
     if (!lcs_matrix) {
         free(s1);
         free(s2);
@@ -200,7 +209,7 @@ int main() {
     // Calculate the length of the LCS and fill the matrix.
     int lcs_length_val = calculate_lcs_length(s1, s2, lcs_matrix);
     if (lcs_length_val < 0) {
-        free_matrix(lcs_matrix, m + 1);
+        free_matrix_single_block(lcs_matrix);
         free(s1);
         free(s2);
         return 1;
@@ -209,8 +218,8 @@ int main() {
     printf("\nThe length of the longest common subsequence is: %d\n", lcs_length_val);
     print_lcs(s1, s2, m, n, lcs_matrix);
 
-    // Clean up all allocated memory.
-    free_matrix(lcs_matrix, m + 1);
+    // Clean up all dynamically allocated memory.
+    free_matrix_single_block(lcs_matrix);
     free(s1);
     free(s2);
 
